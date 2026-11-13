@@ -95,3 +95,11 @@ def test_generate_text_returns_raw_text():
     text = llm.generate_text("assumptions", MSGS)
     assert text.startswith("## Assumptions")
     assert llm.logger.records[-1]["schema"] is None
+
+
+def test_max_tokens_default_and_override():
+    backend = ScriptedBackend([GOOD, GOOD])
+    llm = LLMService(backend, CallLogger(None), max_tokens=8192)
+    llm.generate_structured("design", MSGS, Entity)
+    llm.generate_structured("ping", MSGS, Entity, max_tokens=100)
+    assert backend.max_tokens_seen == [8192, 100]

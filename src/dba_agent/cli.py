@@ -90,6 +90,7 @@ def ping(config: str = CONFIG_OPT) -> None:
             "ping",
             [{"role": "user", "content": "What is 17 + 25? Put the number in the field `answer`."}],
             _PingReply,
+            max_tokens=100,  # the answer is tiny; keeps the cost estimate minimal
         )
     except (ConfigError, LLMError) as e:
         console.print(f"[red]Ping failed:[/red] {e}")

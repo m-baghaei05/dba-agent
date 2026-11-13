@@ -19,7 +19,8 @@ class BackendError(Exception):
 class ChatBackend(Protocol):
     model: str
 
-    def complete(self, messages: Sequence[Message], *, temperature: float, json_mode: bool) -> str:
+    def complete(self, messages: Sequence[Message], *, temperature: float, json_mode: bool,
+                 max_tokens: int | None = None) -> str:
         ...
 
 
@@ -36,10 +37,14 @@ class OpenAICompatibleBackend:
         self._client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout,
                               max_retries=transport_retries)
 
-    def complete(self, messages: Sequence[Message], *, temperature: float, json_mode: bool) -> str:
+    def complete(self, messages: Sequence[Message], *, temperature: float, json_mode: bool,
+                 max_tokens: int | None = None) -> str:
         import openai
 
         kwargs = {}
+        if max_tokens:
+            # Caps the length of the reply. Gateways also use it to estimate cost up front.
+            kwargs["max_tokens"] = max_tokens
         if json_mode:
             # Asks the provider to force syntactically valid JSON. Not every provider
             # supports it, so it is switched on per profile in config.yaml.
@@ -70,9 +75,12 @@ class ScriptedBackend:
         self.model = model
         self._responses = list(responses)
         self.calls: list[list[Message]] = []
+        self.max_tokens_seen: list[int | None] = []
 
-    def complete(self, messages: Sequence[Message], *, temperature: float, json_mode: bool) -> str:
+    def complete(self, messages: Sequence[Message], *, temperature: float, json_mode: bool,
+                 max_tokens: int | None = None) -> str:
         self.calls.append([dict(m) for m in messages])
+        self.max_tokens_seen.append(max_tokens)
         if not self._responses:
             raise AssertionError("ScriptedBackend ran out of responses")
         item = self._responses.pop(0)

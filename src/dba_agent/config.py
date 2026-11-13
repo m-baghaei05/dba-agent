@@ -47,6 +47,7 @@ class LLMSettings(BaseModel):
     temperature: float = Field(0.2, ge=0.0, le=2.0)
     max_retries: int = Field(3, ge=1)
     timeout_seconds: int = Field(180, ge=1)
+    max_tokens: int = Field(8192, ge=16)  # default cap on reply length (controls cost)
 
 
 class WorkflowSettings(BaseModel):

@@ -30,25 +30,30 @@ class LLMError(Exception):
 
 class LLMService:
     def __init__(self, backend: ChatBackend, logger: CallLogger, *, max_retries: int = 3,
-                 temperature: float = 0.2, json_mode: bool = False) -> None:
+                 temperature: float = 0.2, json_mode: bool = False,
+                 max_tokens: int | None = None) -> None:
         self.backend = backend
         self.logger = logger
         self.max_retries = max_retries
         self.temperature = temperature
         self.json_mode = json_mode
+        self.max_tokens = max_tokens  # default reply-length cap; each call may override it
 
     # ------------------------------------------------------------------ public API
-    def generate_text(self, stage: str, messages: Sequence[Message]) -> str:
+    def generate_text(self, stage: str, messages: Sequence[Message], *,
+                      max_tokens: int | None = None) -> str:
         record = self._new_record(stage, messages, schema=None)
         try:
-            text = self._attempt(record, list(messages), json_mode=False)
+            text = self._attempt(record, list(messages), json_mode=False,
+                                 max_tokens=max_tokens or self.max_tokens)
         except BackendError as e:
             self._finish(record, success=False, error=str(e))
             raise LLMError(f"[{stage}] LLM call failed: {e}") from e
         self._finish(record, success=True)
         return text
 
-    def generate_structured(self, stage: str, messages: Sequence[Message], schema: type[T]) -> T:
+    def generate_structured(self, stage: str, messages: Sequence[Message], schema: type[T], *,
+                            max_tokens: int | None = None) -> T:
         # The schema is appended automatically, so prompts and code can never disagree on it.
         convo = list(messages) + [{"role": "system", "content": schema_instructions(schema)}]
         record = self._new_record(stage, convo, schema=schema)
@@ -56,7 +61,8 @@ class LLMService:
         last_error = ""
         for _ in range(self.max_retries):
             try:
-                text = self._attempt(record, convo, json_mode=self.json_mode)
+                text = self._attempt(record, convo, json_mode=self.json_mode,
+                                     max_tokens=max_tokens or self.max_tokens)
             except BackendError as e:
                 self._finish(record, success=False, error=str(e))
                 raise LLMError(f"[{stage}] LLM call failed: {e}") from e
@@ -81,13 +87,15 @@ class LLMService:
         )
 
     # ------------------------------------------------------------------ internals
-    def _attempt(self, record: dict, messages: list[Message], *, json_mode: bool) -> str:
+    def _attempt(self, record: dict, messages: list[Message], *, json_mode: bool,
+                 max_tokens: int | None) -> str:
         n = len(record["attempts"]) + 1
         started = time.perf_counter()
         entry: dict = {"attempt": n, "input_messages": len(messages)}
         record["attempts"].append(entry)
         try:
-            text = self.backend.complete(messages, temperature=self.temperature, json_mode=json_mode)
+            text = self.backend.complete(messages, temperature=self.temperature,
+                                         json_mode=json_mode, max_tokens=max_tokens)
         except BackendError as e:
             entry["error"] = str(e)
             raise
@@ -125,4 +133,5 @@ def build_llm_service(cfg: AppConfig, log_path: str | Path | None) -> LLMService
     return LLMService(
         backend, CallLogger(log_path),
         max_retries=cfg.llm.max_retries, temperature=cfg.llm.temperature, json_mode=p.json_mode,
+        max_tokens=cfg.llm.max_tokens,
     )
