@@ -1,0 +1,28 @@
+# Secrets — never commit real API keys
+.env
+
+# Runtime output of agent sessions (the committed example run lives in examples/)
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local databases created during testing
+*.db
+*.sqlite
+*.sqlite3
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

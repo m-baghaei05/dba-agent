@@ -1,0 +1,42 @@
+# DBA Agent configuration.
+# Switch provider/model by changing `active_profile` (or set DBA_PROFILE in .env).
+# No code changes are needed: every profile uses the OpenAI-compatible chat API.
+
+active_profile: openrouter_free
+
+profiles:
+  gapgpt:
+    # Check the base URL and model names in your GapGPT dashboard before use.
+    base_url: "https://api.gapgpt.app/v1"
+    model: "CHANGE-ME"
+    api_key_env: GAPGPT_API_KEY
+
+  openrouter_free:
+    base_url: "https://openrouter.ai/api/v1"
+    model: "openrouter/free"      # OpenRouter's router across currently free models
+    api_key_env: OPENROUTER_API_KEY
+
+  deepseek:
+    base_url: "https://api.deepseek.com"
+    model: "deepseek-v4-flash"
+    api_key_env: DEEPSEEK_API_KEY
+
+  ollama:
+    # Local models via Ollama; no API key needed.
+    base_url: "http://localhost:11434/v1"
+    model: "CHANGE-ME"            # e.g. the tag shown by `ollama list`
+    api_key_env: null
+
+llm:
+  temperature: 0.2          # low = more consistent, repeatable designs
+  max_retries: 3            # attempts per call when output is invalid JSON / fails validation
+  timeout_seconds: 180
+
+workflow:
+  interview_min_followup_rounds: 1   # spec: at least one follow-up round
+  interview_max_rounds: 4            # hard stop so the interview always ends
+  sql_max_repair_attempts: 3         # bonus validation loop cap
+
+paths:
+  output_dir: output
+  prompts_dir: prompts

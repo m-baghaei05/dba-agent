@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dba-agent"
+version = "0.1.0"
+description = "An LLM-powered database design assistant (Database Lab project)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.40",        # one client for every OpenAI-compatible provider
+    "pydantic>=2.6",       # validates config, session state and LLM output
+    "typer>=0.12",         # command-line interface
+    "rich>=13.7",          # readable terminal output (tables, panels, Markdown)
+    "jinja2>=3.1",         # prompt templates in prompts/
+    "pyyaml>=6.0",         # reads config.yaml
+    "python-dotenv>=1.0",  # loads API keys from .env
+    "sqlalchemy>=2.0",     # compiles DDL for each SQL dialect
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+# Drivers for executing SQL against real servers (bonus validation loop)
+db = ["psycopg[binary]>=3.1", "pymysql>=1.1", "pymssql>=2.3"]
+
+[project.scripts]
+dba = "dba_agent.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
