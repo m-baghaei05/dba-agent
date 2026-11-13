@@ -34,7 +34,9 @@ pip install -e ".[dev]"
 3. Check the setup:
 
 ```bash
-dba info
+dba info      # active profile, model, whether the API key is set
+dba models    # model IDs the provider offers (copy one into config.yaml)
+dba ping      # one small structured request; logged to output/_ping/llm_calls.jsonl
 ```
 
 ## Usage

@@ -13,7 +13,8 @@ CONFIG = ROOT / "config.yaml"
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
     # Make tests independent of the developer's own environment.
-    for var in ("DBA_PROFILE", "OPENROUTER_API_KEY", "GAPGPT_API_KEY", "DEEPSEEK_API_KEY"):
+    for var in ("DBA_PROFILE", "OPENROUTER_API_KEY", "GAPGPT_API_KEY", "DEEPSEEK_API_KEY",
+                "AVALAI_API_KEY", "KILO_API_KEY"):
         monkeypatch.delenv(var, raising=False)
 
 

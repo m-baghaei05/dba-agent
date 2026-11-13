@@ -28,6 +28,7 @@ class ProviderProfile(BaseModel):
     base_url: str
     model: str
     api_key_env: str | None = None  # None = no key needed (e.g. local Ollama)
+    json_mode: bool = False         # send response_format=json_object (only if the provider supports it)
 
     def api_key(self) -> str:
         """Return the API key from the environment, or fail with a clear message."""
