@@ -41,7 +41,27 @@ dba ping      # one small structured request; logged to output/_ping/llm_calls.j
 
 ## Usage
 
-*TODO*
+```bash
+dba new --brief-file examples/test-scenario.md   # start a session from a file
+dba new                                          # or type the description (finish with /end)
+dba list                                         # all sessions
+dba status [SESSION_ID]                          # progress of one session (default: latest)
+dba resume [SESSION_ID]                          # continue where it stopped (default: latest)
+```
+
+During the interview, type `skip` if you don't know an answer; the agent will make a reasonable
+assumption and mark it as such in `requirements.md`. Progress is saved after every answer, so
+you can stop at any time (Ctrl+C) and resume later.
+
+Each session has its own folder:
+
+```
+output/<session_id>/
+  session.json        full saved state (used by `dba resume`)
+  llm_calls.jsonl     every LLM call: stage, input, output, attempts, errors, latency
+  summary.md          Stage 1: structured summary of the description
+  requirements.md     Stage 2: numbered requirements (R-01…) + interview transcript
+```
 
 ## Example run
 

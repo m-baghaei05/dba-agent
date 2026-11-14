@@ -105,5 +105,136 @@ def ping(config: str = CONFIG_OPT) -> None:
     console.print(f"Logged to {log_path}")
 
 
+# ---------------------------------------------------------------- design sessions
+def _build_context(cfg: AppConfig, session_id: str):
+    from dba_agent.llm import build_llm_service
+    from dba_agent.prompts import PromptLibrary
+    from dba_agent.stages.context import StageContext
+    from dba_agent.state import SessionStore
+    from dba_agent.userio import ConsoleIO
+
+    store = SessionStore(cfg.paths.output_dir)
+    return StageContext(
+        llm=build_llm_service(cfg, store.log_path(session_id)),
+        prompts=PromptLibrary(cfg.paths.prompts_dir),
+        io=ConsoleIO(),
+        store=store,
+        workflow=cfg.workflow,
+    )
+
+
+def _run_session(cfg: AppConfig, session) -> None:
+    from dba_agent import orchestrator
+    from dba_agent.llm import LLMError
+
+    console.print(f"Session [bold]{session.id}[/bold] — files in {Path(cfg.paths.output_dir) / session.id}")
+    try:
+        ctx = _build_context(cfg, session.id)
+        orchestrator.run(ctx, session)
+    except (LLMError, ConfigError) as e:
+        console.print(f"[red]Stopped:[/red] {e}")
+        console.print(f"Progress is saved. Fix the problem, then run: dba resume {session.id}")
+        raise typer.Exit(code=1)
+    except KeyboardInterrupt:
+        console.print(f"\n[yellow]Interrupted.[/yellow] Progress is saved. Continue with: dba resume {session.id}")
+        raise typer.Exit(code=130)
+
+
+@app.command()
+def new(
+    brief_file: Path = typer.Option(None, "--brief-file", "-f", exists=True, dir_okay=False,
+                                    help="Read the system description from a text/Markdown file."),
+    config: str = CONFIG_OPT,
+) -> None:
+    """Start a new design session from a description of your system."""
+    from dba_agent.state import SessionStore
+    from dba_agent.userio import ConsoleIO
+
+    cfg = _load(config)
+    if brief_file:
+        brief = brief_file.read_text(encoding="utf-8")
+    else:
+        brief = ConsoleIO().ask_multiline("Describe the system you need a database for.")
+    if not brief.strip():
+        console.print("[red]The description is empty.[/red]")
+        raise typer.Exit(code=1)
+
+    session = SessionStore(cfg.paths.output_dir).create(brief)
+    _run_session(cfg, session)
+
+
+@app.command()
+def resume(
+    session_id: str = typer.Argument(None, help="Session ID (default: the most recent session)."),
+    config: str = CONFIG_OPT,
+) -> None:
+    """Continue a saved session from where it stopped."""
+    from dba_agent.state import SessionNotFound, SessionStore
+
+    cfg = _load(config)
+    store = SessionStore(cfg.paths.output_dir)
+    session_id = session_id or store.latest_id()
+    if not session_id:
+        console.print("No sessions yet. Start one with: dba new")
+        raise typer.Exit(code=1)
+    try:
+        session = store.load(session_id)
+    except SessionNotFound as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"Resuming at stage [bold]{session.stage.value}[/bold]")
+    _run_session(cfg, session)
+
+
+@app.command("list")
+def list_sessions(config: str = CONFIG_OPT) -> None:
+    """List saved sessions."""
+    from dba_agent.state import SessionStore
+
+    cfg = _load(config)
+    sessions = SessionStore(cfg.paths.output_dir).list()
+    if not sessions:
+        console.print("No sessions yet. Start one with: dba new")
+        return
+    table = Table("ID", "System", "Stage", "Last update")
+    for s in sessions:
+        table.add_row(s.id, s.summary.system_name if s.summary else "—", s.stage.value, s.updated_at)
+    console.print(table)
+
+
+@app.command()
+def status(
+    session_id: str = typer.Argument(None, help="Session ID (default: the most recent session)."),
+    config: str = CONFIG_OPT,
+) -> None:
+    """Show the progress of one session."""
+    from dba_agent.state import SessionNotFound, SessionStore
+
+    cfg = _load(config)
+    store = SessionStore(cfg.paths.output_dir)
+    session_id = session_id or store.latest_id()
+    try:
+        s = store.load(session_id) if session_id else None
+    except SessionNotFound as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+    if s is None:
+        console.print("No sessions yet. Start one with: dba new")
+        return
+
+    iv = s.interview
+    table = Table(title=f"Session {s.id}", show_header=False)
+    table.add_row("System", s.summary.system_name if s.summary else "—")
+    table.add_row("Stage", s.stage.value)
+    table.add_row("Interview", f"{iv.rounds_done} round(s), {len([q for q in iv.qa if q.answer is not None])} "
+                               f"answers, {'finished' if iv.finished else 'in progress'}")
+    if iv.coverage:
+        table.add_row("Coverage", ", ".join(f"{k.value}: {v}" for k, v in iv.coverage.items()))
+    table.add_row("Requirements", str(len(s.requirements)))
+    files = sorted(p.name for p in store.dir(s.id).iterdir() if p.is_file())
+    table.add_row("Files", ", ".join(files))
+    console.print(table)
+
+
 if __name__ == "__main__":
     app()
