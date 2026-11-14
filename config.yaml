@@ -8,7 +8,7 @@ active_profile: avalai
 profiles:
   avalai:
     base_url: "https://api.avalai.ir/v1"        # verify in your AvalAI dashboard
-    model: "dba-agent"                           # pick an open model, e.g. a DeepSeek/Qwen/GLM ID
+    model: "deepseek-v4-flash"                           # pick an open model, e.g. a DeepSeek/Qwen/GLM ID
     api_key_env: AVALAI_API_KEY
 
   gapgpt:
