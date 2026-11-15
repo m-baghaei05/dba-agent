@@ -64,3 +64,21 @@ def make_ctx(tmp_path):
         )
         return ctx, backend
     return _make
+
+
+def dbms_json(chosen="postgresql", req_id="R-05") -> str:
+    def sc(pg, my, lite, ms):
+        return {"postgresql": pg, "mysql": my, "sqlite": lite, "sqlserver": ms}
+    others = [d for d in ("postgresql", "mysql", "sqlite", "sqlserver") if d != chosen]
+    return json.dumps({
+        "chosen": chosen,
+        "justification": f"Fits concurrent bookings ({req_id}).",
+        "criteria": [
+            {"name": "Concurrent writes", "weight": 5, "requirement_ids": [req_id], "scores": sc(5, 4, 1, 4)},
+            {"name": "Reporting", "weight": 4, "scores": sc(5, 4, 3, 5)},
+            {"name": "Cost", "weight": 3, "scores": sc(5, 5, 5, 2)},
+            {"name": "Deployment", "weight": 2, "scores": sc(4, 4, 5, 2)},
+        ],
+        "rejected": [{"dbms": d, "reason": "Worse fit."} for d in others],
+        "trade_offs": ["Needs a server."],
+    })

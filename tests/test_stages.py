@@ -2,7 +2,7 @@
 
 import json
 
-from conftest import followup_json, initial_json, requirements_json, summary_json
+from conftest import dbms_json, followup_json, initial_json, requirements_json, summary_json
 
 from dba_agent import orchestrator
 from dba_agent.stages import intake, interview
@@ -120,15 +120,16 @@ def test_interview_resumes_mid_round(make_ctx):
 # ---------------------------------------------------------------- orchestrator
 def test_orchestrator_runs_until_unimplemented_stage(make_ctx):
     llm = [summary_json(), initial_json(), followup_json(True, 1), followup_json(True, 0),
-           requirements_json()]
-    ctx, _ = make_ctx(llm, [""] + ["a"] * (N_INITIAL + 1))
+           requirements_json(), dbms_json()]
+    ctx, _ = make_ctx(llm, [""] + ["a"] * (N_INITIAL + 1) + [""])
     s = ctx.store.create("A dental clinic.")
     orchestrator.run(ctx, s)
 
     reloaded = ctx.store.load(s.id)
-    assert reloaded.stage == Stage.DBMS
+    assert reloaded.stage == Stage.DESIGN
+    assert reloaded.dbms_choice.chosen.value == "postgresql"
     assert "not implemented yet" in ctx.io.output[-1]
-    assert {"summary.md", "requirements.md", "session.json"} <= {
+    assert {"summary.md", "requirements.md", "dbms-choice.md", "session.json"} <= {
         p.name for p in ctx.store.dir(s.id).iterdir()}
     json.loads((ctx.store.dir(s.id) / "session.json").read_text())  # valid JSON on disk
 

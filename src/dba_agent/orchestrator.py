@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from dba_agent.stages import intake, interview
+from dba_agent.stages import dbms, intake, interview
 from dba_agent.stages.context import StageContext
 from dba_agent.state import Session, Stage
 
@@ -20,7 +20,8 @@ Handler = Callable[[StageContext, Session], None]
 HANDLERS: dict[Stage, Handler] = {
     Stage.INTAKE: intake.run,
     Stage.INTERVIEW: interview.run,
-    # Stage.DBMS, Stage.DESIGN, Stage.REVISION, Stage.SQL: added on Days 3–6
+    Stage.DBMS: dbms.run,
+    # Stage.DESIGN, Stage.REVISION, Stage.SQL: added on Days 4–6
 }
 
 

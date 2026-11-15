@@ -103,3 +103,17 @@ def test_max_tokens_default_and_override():
     llm.generate_structured("design", MSGS, Entity)
     llm.generate_structured("ping", MSGS, Entity, max_tokens=100)
     assert backend.max_tokens_seen == [8192, 100]
+
+
+def test_extra_check_is_fed_back_like_a_schema_error():
+    from dba_agent.llm import OutputError
+
+    def no_teachers(entity):
+        if entity.name == "Teacher":
+            raise OutputError("Entity 'Teacher' is not part of this system.")
+
+    llm, backend = make_service(['{"name": "Teacher", "attributes": []}', GOOD])
+    result = llm.generate_structured("design", MSGS, Entity, check=no_teachers)
+    assert result.name == "Student"
+    assert "not part of this system" in backend.calls[1][-1]["content"]
+    assert llm.logger.records[-1]["num_attempts"] == 2

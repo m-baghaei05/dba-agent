@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Sequence, TypeVar
+from typing import Callable, Sequence, TypeVar
 
 from pydantic import BaseModel
 
@@ -53,7 +53,11 @@ class LLMService:
         return text
 
     def generate_structured(self, stage: str, messages: Sequence[Message], schema: type[T], *,
-                            max_tokens: int | None = None) -> T:
+                            max_tokens: int | None = None,
+                            check: Callable[[T], None] | None = None) -> T:
+        """`check` is an optional extra rule that needs outside context (e.g. "only use requirement
+        IDs that exist"). It raises OutputError on failure, which is fed back exactly like a
+        schema error."""
         # The schema is appended automatically, so prompts and code can never disagree on it.
         convo = list(messages) + [{"role": "system", "content": schema_instructions(schema)}]
         record = self._new_record(stage, convo, schema=schema)
@@ -68,6 +72,8 @@ class LLMService:
                 raise LLMError(f"[{stage}] LLM call failed: {e}") from e
             try:
                 result = parse_model(text, schema)
+                if check is not None:
+                    check(result)
             except OutputError as e:
                 last_error = str(e)
                 record["attempts"][-1]["error"] = last_error

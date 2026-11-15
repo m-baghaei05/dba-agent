@@ -15,7 +15,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from dba_agent.schemas import InterviewState, Requirement, SystemSummary
+from dba_agent.schemas import DBMSChoice, InterviewState, Requirement, SystemSummary
 
 SESSION_FILE = "session.json"
 LOG_FILE = "llm_calls.jsonl"
@@ -48,6 +48,8 @@ class Session(BaseModel):
     interview: InterviewState = Field(default_factory=InterviewState)
     requirements_overview: str = ""
     requirements: list[Requirement] = Field(default_factory=list)
+    # Stage 3
+    dbms_choice: DBMSChoice | None = None
     # Later stages add their fields here (with defaults, so older session files still load).
 
 

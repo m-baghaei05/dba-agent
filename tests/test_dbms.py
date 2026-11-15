@@ -76,3 +76,48 @@ def test_render_dbms_choice():
     assert "| **Weighted total** | | | **68** |" in doc
     assert "- **SQLite**: Single-writer locking" in doc
     assert "## Trade-offs of PostgreSQL" in doc
+
+
+# ---------------------------------------------------------------- stage
+from conftest import dbms_json, requirements_json, summary_json  # noqa: E402
+
+from dba_agent.schemas import RequirementsDraft, SystemSummary  # noqa: E402
+from dba_agent.render.markdown import number_requirements  # noqa: E402
+from dba_agent.stages import dbms as dbms_stage  # noqa: E402
+from dba_agent.state import Stage  # noqa: E402
+
+
+def _session_after_interview(ctx):
+    s = ctx.store.create("A dental clinic.")
+    s.summary = SystemSummary.model_validate_json(summary_json())
+    s.requirements = number_requirements(RequirementsDraft.model_validate_json(requirements_json()).items)
+    s.stage = Stage.DBMS
+    return s
+
+
+def test_dbms_stage_accept(make_ctx):
+    ctx, backend = make_ctx([dbms_json()], user_answers=[""])
+    s = _session_after_interview(ctx)
+    dbms_stage.run(ctx, s)
+
+    assert s.stage == Stage.DESIGN and s.dbms_choice.chosen == DBMS.POSTGRESQL
+    assert "R-07" in backend.calls[0][1]["content"]  # requirements were sent in the prompt
+    assert "# DBMS Choice" in (ctx.store.dir(s.id) / "dbms-choice.md").read_text()
+
+
+def test_unknown_requirement_id_is_fed_back(make_ctx):
+    ctx, backend = make_ctx([dbms_json(req_id="R-99"), dbms_json()], user_answers=[""])
+    s = _session_after_interview(ctx)
+    dbms_stage.run(ctx, s)
+
+    assert ctx.llm.logger.records[-1]["num_attempts"] == 2
+    assert "Unknown requirement IDs: R-99" in backend.calls[1][-1]["content"]
+
+
+def test_user_feedback_triggers_reconsideration(make_ctx):
+    ctx, backend = make_ctx([dbms_json(), dbms_json()], user_answers=["It must run offline.", ""])
+    s = _session_after_interview(ctx)
+    dbms_stage.run(ctx, s)
+
+    second = backend.calls[1][1]["content"]
+    assert "It must run offline." in second and "Your previous decision" in second
