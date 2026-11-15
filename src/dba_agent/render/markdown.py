@@ -6,7 +6,8 @@ same document out, which makes the outputs predictable and easy to test.
 
 from __future__ import annotations
 
-from dba_agent.schemas import CATEGORY_TITLES, QA, Category, Requirement, SystemSummary
+from dba_agent.schemas import (CATEGORY_TITLES, DBMS, DBMS_NAMES, QA, Category, DBMSChoice, Requirement,
+                               SystemSummary)
 
 
 def _cell(text: str) -> str:
@@ -86,4 +87,46 @@ def render_requirements(system_name: str, overview: str, reqs: list[Requirement]
 ## Appendix: Interview transcript
 
 {chr(10).join(transcript)}
+"""
+
+
+def render_dbms_choice(system_name: str, choice: DBMSChoice) -> str:
+    chosen = DBMS_NAMES[choice.chosen]
+    order = [choice.chosen] + [d for d in DBMS if d != choice.chosen]  # chosen first
+
+    def head(d: DBMS) -> str:
+        return f"**{DBMS_NAMES[d]}**" if d == choice.chosen else DBMS_NAMES[d]
+
+    rows = []
+    for c in choice.criteria:
+        scores = " | ".join(str(c.scores[d]) for d in order)
+        based_on = ", ".join(c.requirement_ids) or "—"
+        rows.append(f"| {_cell(c.name)} | {c.weight} | {based_on} | {scores} | {_cell(c.note)} |")
+    totals = choice.totals()
+    total_row = " | ".join(f"**{totals[d]}**" if d == choice.chosen else str(totals[d]) for d in order)
+
+    rejected = {r.dbms: r.reason for r in choice.rejected}
+    why_not = "\n".join(f"- **{DBMS_NAMES[d]}**: {rejected[d]}" for d in order[1:])
+
+    return f"""# DBMS Choice: {system_name}
+
+## Decision
+**{chosen}**
+
+{choice.justification}
+
+## Comparison
+Scores: 1 = poor fit, 5 = excellent fit. Weight: importance for this system (1–5).
+Weighted total = sum of weight × score, computed by the tool.
+
+| Criterion | Weight | Based on | {" | ".join(head(d) for d in order)} | Notes |
+|---|---|---|{"---|" * len(order)}---|
+{chr(10).join(rows)}
+| **Weighted total** | | | {total_row} | |
+
+## Why not the others
+{why_not}
+
+## Trade-offs of {chosen}
+{_bullets(choice.trade_offs)}
 """

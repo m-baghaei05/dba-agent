@@ -176,3 +176,78 @@ class RequirementsDraft(BaseModel):
 
 class Requirement(RequirementItem):
     id: str  # "R-01", assigned by code (not the LLM) so IDs are always unique and ordered
+
+
+# ---------------------------------------------------------------- Stage 3: DBMS selection
+class DBMS(str, Enum):
+    """The four candidate systems allowed by the spec."""
+
+    POSTGRESQL = "postgresql"
+    MYSQL = "mysql"          # MySQL / MariaDB
+    SQLITE = "sqlite"
+    SQLSERVER = "sqlserver"
+
+
+DBMS_NAMES: dict[DBMS, str] = {
+    DBMS.POSTGRESQL: "PostgreSQL",
+    DBMS.MYSQL: "MySQL / MariaDB",
+    DBMS.SQLITE: "SQLite",
+    DBMS.SQLSERVER: "SQL Server",
+}
+
+
+class Criterion(BaseModel):
+    """One comparison criterion, scored for every candidate."""
+
+    name: str = Field(description="e.g. 'Concurrent writes', 'Reporting queries', 'Deployment simplicity'")
+    weight: int = Field(ge=1, le=5, description="Importance for THIS system: 1 = minor, 5 = critical")
+    requirement_ids: list[str] = Field(default_factory=list,
+                                       description="IDs of the requirements (R-xx) that make this matter")
+    scores: dict[DBMS, int] = Field(description="Score 1–5 for every DBMS (5 = best fit)")
+    note: str = Field("", description="One sentence explaining the scores")
+
+    @model_validator(mode="after")
+    def _all_scored(self) -> "Criterion":
+        missing = [d.value for d in DBMS if d not in self.scores]
+        if missing:
+            raise ValueError(f"Criterion '{self.name}' must score every DBMS. Missing: {', '.join(missing)}")
+        bad = [f"{d.value}={v}" for d, v in self.scores.items() if not 1 <= v <= 5]
+        if bad:
+            raise ValueError(f"Criterion '{self.name}': scores must be between 1 and 5 ({', '.join(bad)})")
+        return self
+
+
+class Rejection(BaseModel):
+    dbms: DBMS
+    reason: str = Field(description="Why this option is worse for THIS system, citing requirements")
+
+
+class DBMSChoice(BaseModel):
+    chosen: DBMS
+    justification: str = Field(description="One paragraph linking the choice to the requirements")
+    criteria: list[Criterion] = Field(min_length=4, max_length=10)
+    rejected: list[Rejection] = Field(description="Exactly one entry for each DBMS not chosen")
+    trade_offs: list[str] = Field(default_factory=list,
+                                  description="Weaknesses or risks of the chosen DBMS for this system")
+
+    def totals(self) -> dict[DBMS, int]:
+        """Weighted score per DBMS, computed by code (not by the LLM)."""
+        return {d: sum(c.weight * c.scores[d] for c in self.criteria) for d in DBMS}
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "DBMSChoice":
+        expected = {d for d in DBMS if d != self.chosen}
+        given = [r.dbms for r in self.rejected]
+        if set(given) != expected or len(given) != len(expected):
+            raise ValueError("`rejected` must contain exactly one entry for each DBMS except the chosen one: "
+                             + ", ".join(sorted(d.value for d in expected)))
+        totals = self.totals()
+        best = max(totals.values())
+        if totals[self.chosen] < best:
+            leader = next(d for d, t in totals.items() if t == best)
+            raise ValueError(
+                f"Your own scores contradict your choice: weighted total for {self.chosen.value} is "
+                f"{totals[self.chosen]}, but {leader.value} has {best}. Either revise the scores or "
+                f"choose the DBMS with the highest total."
+            )
+        return self
